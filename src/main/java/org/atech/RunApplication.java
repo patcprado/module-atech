@@ -12,11 +12,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.Date;
 
+//Aplicação principal
 public class RunApplication {
-        private static String path = "/atech/";
-        private static String peopleFile = path + "people.txt";
-        private static String testFile = path + "testFile.txt";
-        private static String logFile = path + "atech.log";
+        private final static String path = "/atech/";
+        private final static String peopleFile = path + "people.txt";
+        private final static String testFile = path + "testFile.txt";
+        private final static String logfile = path + "atech.log";
 
         public static void main(String[] args) throws IOException {
 
@@ -60,7 +61,7 @@ public class RunApplication {
 
         private static void simulaAction(String nome, String email, ArrayList<String> report) {
             Editor editor = new Editor();
-            LoggingListener loggerOriginal = new LoggingListener(logFile, nome + " has opened the file: %s");
+            LoggingListener loggerOriginal = new LoggingListener(logfile, nome + " has opened the file: %s");
             EmailAlertsListener emailAlertsOriginal = new EmailAlertsListener(email, nome + " has changed the file: %s");
             editor.events.subscribe("open", loggerOriginal);
             editor.events.subscribe("save", emailAlertsOriginal);
