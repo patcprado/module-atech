@@ -1,93 +1,83 @@
 package org.atech;
 
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.Date;
 
 //Aplicação principal
 public class RunApplication {
-        private final static String path = "/atech/";
-        private final static String peopleFile = path + "people.txt";
-        private final static String testFile = path + "testFile.txt";
-        private final static String logfile = path + "atech.log";
+        private final static String path = "/Users/Patricia/desen/module-atech/src/main";
+        private final static String peopleFile = path + "/resources/people.txt";
 
-        public static void main(String[] args) throws IOException {
+        private final static String observList = path + "/resources/observadoresList.txt";
 
+        private final static String objFileObserved = path + "/resources/observe-me.txt";
+        private final static String logfile = path + "/resources/atech.log";
+
+        public static void main(String[] args)  {
+
+            //pessoas que vão alterar o objeto.
             Map<String, String> pessoas = readPeopleFile(peopleFile);
-            ArrayList<String> report = new ArrayList<String>();
 
             // Criando um pool de threads
             ExecutorService executorService = Executors.newFixedThreadPool(pessoas.size());
 
             // Iterando sobre as pessoas e executando ação simulada em threads separadas
             Set<String> chaves = pessoas.keySet();
-            for (String chave : chaves) {
-                String nome = chave;
-                String email = pessoas.get(chave);
-
-                executorService.execute(() -> simulaAction(nome, email, report));
+            for (String user : chaves) {
+                executorService.execute(() -> simulaAction(user));
             }
-
             // Encerrando o pool de threads
             executorService.shutdown();
-
-            creatReportFile(report);
-
-        }
-
-        private static void creatReportFile(ArrayList<String> report) throws IOException {
-            FileWriter arq;
-            String data = getDatahora().replaceAll("[/:\\s]", "");
-            arq = new FileWriter(path + "Report"+ data + ".txt");
-            PrintWriter gravarArqDiff = new PrintWriter(arq);
-            for (String line : report) {
-                gravarArqDiff.print(line+"\n");
-            }
-            gravarArqDiff.close();
             System.out.println("\nFinished.");
+
         }
 
-        private static void addReport(String nome, String action, ArrayList<String> report) {
-            report.add(nome + "|" + getDatahora() + "|" + action);
-        }
+        private static void simulaAction(String user) {
+            Map<String, String> clients = readPeopleFile(observList);
 
-        private static void simulaAction(String nome, String email, ArrayList<String> report) {
-            Editor editor = new Editor();
-            LoggingListener loggerOriginal = new LoggingListener(logfile, nome + " has opened the file: %s");
-            EmailAlertsListener emailAlertsOriginal = new EmailAlertsListener(email, nome + " has changed the file: %s");
-            editor.events.subscribe("open", loggerOriginal);
-            editor.events.subscribe("save", emailAlertsOriginal);
+            // Notify - envia mensagem para fila que houve alteração no estado: open, save, delete
+            Set<String> chaves = clients.keySet();
+            for (String cliente : chaves) {
+                Editor editor = new Editor();
 
-            // Simulação de abertura de arquivo
-            addReport(nome, "open", report);
-            editor.openFile(testFile);
+                String emailClient = clients.get(cliente);
 
-            // Simulação de salvamento de arquivo (save com 50% de probabilidade )
-            if (Math.random() < 0.7) {
-                addReport(nome, "save", report);
-                editor.saveFile();
-            }
-
-            // Simulação de exclusão de arquivo (delete com 20% de probabilidade)
-            if (Math.random() < 0.2) {
-                System.out.println("\u001B[1;31mFile "+ testFile +" was delete for " + nome + ". \u001B[0m");
-                addReport(nome, "delete", report);
-                editor.deleteFile();
+                notifyClients(editor,cliente, user);
+                // Simulação de salvamento de arquivo (save com 70% de probabilidade)
+                if (Math.random() < 0.7) {
+                    sendMailWhenChanges(editor, cliente, emailClient, user);
+                }
+                // Simulação de exclusão de arquivo (delete com 20% de probabilidade)
+                if (Math.random() < 0.2) {
+                    sendMailWhenDelete(editor, cliente, emailClient, user);
+                }
             }
         }
 
-        public static String getDatahora() {
-            Date data = new Date();
-            SimpleDateFormat formatador = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-            return formatador.format(data);
+    private static void notifyClients(Editor editor, String nomeClient, String user) {
+        LoggingListener loggerOriginal = new LoggingListener(logfile, "Notify " + nomeClient + ": " + user + " has opened the file: %s");
+
+        //Emite a notificação OPEN assim que ela ocorrer.
+        editor.events.subscribe("open", loggerOriginal);
+        editor.openFile(objFileObserved);
+        }
+
+    private static void sendMailWhenChanges(Editor editor, String nomeClient, String emailClient, String user) {
+        EmailAlertsListener emailAlertsChanges = new EmailAlertsListener(emailClient, "Notify " + nomeClient + ": "+ user + " has changed the file: %s");
+        //Emite a notificação SAVE assim que ela ocorrer.
+        editor.events.subscribe("save", emailAlertsChanges);
+        editor.saveFile();
+    }
+
+    private static void sendMailWhenDelete(Editor editor, String nomeClient, String emailClient, String user) {
+        EmailAlertsListener emailAlertsDelete = new EmailAlertsListener(emailClient, "Notify " + nomeClient + ": "+ user + " has \u001B[1;31m delete \u001B[0m the file: %s");
+        editor.events.subscribe("delete", emailAlertsDelete);
+        editor.deleteFile();
         }
 
         private static Map<String, String> readPeopleFile(String peopleFile) {
